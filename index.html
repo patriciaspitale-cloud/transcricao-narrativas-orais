@@ -59,7 +59,10 @@
   </main>
 
   <script type="module">
-    const TRANSFORMERS_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.web.js";
+    const TRANSFORMERS_URLS = [
+      "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.web.js",
+      "https://esm.sh/@huggingface/transformers@4.3.0",
+    ];
     const MODEL_ID = "onnx-community/whisper-tiny";
     const fileInput = document.querySelector("#audioFile");
     const runButton = document.querySelector("#transcribeButton");
@@ -86,11 +89,21 @@
       progress.hidden = false;
       progress.removeAttribute("value");
       if (!pipelineFunction) {
-        try {
-          const library = await import(TRANSFORMERS_URL);
-          pipelineFunction = library.pipeline;
-        } catch (error) {
-          throw new Error("Não foi possível carregar a biblioteca de reconhecimento. Confira a conexão com a internet e tente atualizar a página.", { cause: error });
+        const errors = [];
+        for (const url of TRANSFORMERS_URLS) {
+          try {
+            const library = await import(url);
+            if (typeof library.pipeline === "function") {
+              pipelineFunction = library.pipeline;
+              break;
+            }
+            errors.push(`${url}: função pipeline não encontrada`);
+          } catch (error) {
+            errors.push(`${url}: ${error instanceof Error ? error.message : String(error)}`);
+          }
+        }
+        if (!pipelineFunction) {
+          throw new Error(`Não foi possível carregar a biblioteca de reconhecimento. Detalhes: ${errors.join(" | ")}`);
         }
       }
       transcriber = await pipelineFunction("automatic-speech-recognition", MODEL_ID, {
