@@ -162,7 +162,8 @@
         setStatus(text ? "Transcrição concluída. Revise o texto comparando com o áudio." : "Não foi possível reconhecer fala nesse áudio.");
       } catch (error) {
         console.error(error);
-        setStatus("Ocorreu um erro ao transcrever. Tente outro áudio ou outro navegador, como Chrome ou Edge.", true);
+        const detail = error instanceof Error ? error.message : String(error);
+        setStatus(`Ocorreu um erro ao transcrever. Detalhe: ${detail}`, true);
       } finally {
         runButton.disabled = false;
         progress.hidden = true;
