@@ -36,6 +36,14 @@
       <h1>Transcrição de narrativas orais</h1>
       <p class="intro">Escolha um arquivo de áudio e gere uma transcrição em português sem pontuação. Depois, revise o texto ouvindo a gravação.</p>
 
+      <label for="modelSelect">Modelo de reconhecimento</label>
+      <select id="modelSelect" style="display:block;width:100%;padding:12px;border:1px solid #c8d2e2;border-radius:10px;background:#fff;font:inherit">
+        <option value="onnx-community/whisper-base" selected>Equilibrado — Whisper Base (recomendado)</option>
+        <option value="onnx-community/whisper-small">Mais preciso — Whisper Small (mais lento e maior)</option>
+        <option value="onnx-community/whisper-tiny">Mais rápido — Whisper Tiny (pode errar mais)</option>
+      </select>
+      <p class="small">Cada modelo é baixado na primeira utilização. O modelo Small pode exigir mais tempo, memória e espaço no dispositivo.</p>
+
       <label for="audioFile">Arquivo de áudio</label>
       <input id="audioFile" type="file" accept="audio/*">
       <p class="small">Na primeira utilização, o navegador baixa o modelo de reconhecimento. Esse download pode levar alguns minutos.</p>
@@ -63,7 +71,7 @@
       "https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.3.0/dist/transformers.web.js",
       "https://esm.sh/@huggingface/transformers@4.3.0",
     ];
-    const MODEL_ID = "onnx-community/whisper-tiny";
+    const modelSelect = document.querySelector("#modelSelect");
     const fileInput = document.querySelector("#audioFile");
     const runButton = document.querySelector("#transcribeButton");
     const copyButton = document.querySelector("#copyButton");
@@ -71,7 +79,7 @@
     const transcriptBox = document.querySelector("#transcript");
     const status = document.querySelector("#status");
     const progress = document.querySelector("#progress");
-    let transcriber;
+    const transcribers = new Map();
     let pipelineFunction;
 
     function setStatus(message, isError = false) {
@@ -83,8 +91,8 @@
       return text.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
     }
 
-    async function loadTranscriber() {
-      if (transcriber) return transcriber;
+    async function loadTranscriber(modelId) {
+      if (transcribers.has(modelId)) return transcribers.get(modelId);
       setStatus("Preparando o reconhecimento de voz. Na primeira vez, pode demorar.");
       progress.hidden = false;
       progress.removeAttribute("value");
@@ -106,7 +114,7 @@
           throw new Error(`Não foi possível carregar a biblioteca de reconhecimento. Detalhes: ${errors.join(" | ")}`);
         }
       }
-      transcriber = await pipelineFunction("automatic-speech-recognition", MODEL_ID, {
+      const transcriber = await pipelineFunction("automatic-speech-recognition", modelId, {
         progress_callback: (info) => {
           if (info.status === "progress" && Number.isFinite(info.progress)) {
             progress.value = info.progress;
@@ -117,6 +125,7 @@
         },
       });
       progress.value = 100;
+      transcribers.set(modelId, transcriber);
       return transcriber;
     }
 
@@ -158,7 +167,7 @@
       status.classList.remove("error");
 
       try {
-        const model = await loadTranscriber();
+        const model = await loadTranscriber(modelSelect.value);
         setStatus("Lendo o áudio neste dispositivo…");
         const audio = await decodeAndResample(file);
         setStatus("Transcrevendo. Áudios longos podem levar algum tempo…");
